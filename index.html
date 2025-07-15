@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Mining Engineering Study Guide</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Earthy Harmony -->
+    <!-- Application Structure Plan: The SPA is designed as an interactive dashboard. The main view presents key disciplines of mining engineering as clickable cards. This thematic structure (e.g., 'Exploration & Geology', 'Mining Methods', 'Safety & Legislation') is more intuitive for study than a linear syllabus. Clicking a card dynamically loads detailed content, including interactive charts and comparison tables, into a dedicated view area below. This approach breaks down dense information into manageable, engaging chunks, facilitating focused learning and exploration. The user flow is from a high-level overview to specific, interactive details, which enhances understanding and retention. -->
+    <!-- Visualization & Content Choices:
+        - Report Info: Mine Life Cycle -> Goal: Understand sequence -> Viz: Clickable CSS-based timeline -> Interaction: Click stage to see details -> Justification: Visualizes a process flow better than text.
+        - Report Info: Surface vs. Underground Mining -> Goal: Compare -> Viz: Side-by-side comparison table -> Interaction: Cleanly organized pros/cons -> Justification: Facilitates direct comparison.
+        - Report Info: Types of Explosives -> Goal: Categorize & Inform -> Viz: Chart.js Doughnut Chart -> Interaction: Click slice to display info -> Justification: Engages user and connects visual proportion to detailed data.
+        - Report Info: Exploration Drilling Methods -> Goal: Compare -> Viz: Chart.js Bar Chart -> Interaction: Click bar to show details -> Justification: Provides a visual heuristic for method complexity/application and encourages interaction.
+        - Report Info: Mine Legislation -> Goal: Organize -> Viz: HTML accordion -> Interaction: Expand/collapse to view details -> Justification: Manages a long list of text-heavy items cleanly.
+        - NEW: Report Info: Legislation Content -> Goal: Summarize -> Viz: LLM-generated text summary -> Interaction: Click button to generate summary -> Justification: Provides quick, digestible information for complex legal texts, powered by Gemini API.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #FDFBF8;
+            color: #4A4A4A;
+        }
+        .nav-button {
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        .nav-button:after {
+            content: '';
+            position: absolute;
+            width: 0;
+            height: 2px;
+            display: block;
+            margin-top: 5px;
+            right: 0;
+            background: #D4A373;
+            transition: width 0.3s ease;
+        }
+        .nav-button:hover:after {
+            width: 100%;
+            left: 0;
+            background: #D4A373;
+        }
+        .active-nav-button {
+            color: #D4A373;
+            font-weight: 600;
+        }
+        .discipline-card {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .discipline-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .content-section {
+            display: none;
+            animation: fadeIn 0.8s;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 400px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px;
+            }
+        }
+        .timeline {
+            display: flex;
+            justify-content: space-between;
+            position: relative;
+            margin: 2rem 0;
+        }
+        .timeline::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background-color: #e0e0e0;
+            transform: translateY(-50%);
+        }
+        .timeline-item {
+            position: relative;
+            cursor: pointer;
+            text-align: center;
+        }
+        .timeline-dot {
+            width: 24px;
+            height: 24px;
+            background-color: #fff;
+            border: 2px solid #ccc;
+            border-radius: 50%;
+            transition: all 0.3s ease;
+            margin: 0 auto;
+        }
+        .timeline-item:hover .timeline-dot, .timeline-item.active .timeline-dot {
+            background-color: #D4A373;
+            border-color: #D4A373;
+            transform: scale(1.2);
+        }
+        .timeline-date {
+            margin-top: 10px;
+            font-weight: 500;
+            font-size: 0.875rem;
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <header class="bg-white/80 backdrop-blur-md shadow-sm sticky top-0 z-50">
+        <nav class="container mx-auto px-6 py-4 flex justify-between items-center">
+            <h1 class="text-2xl font-bold text-gray-800">Mining Engineering Guide</h1>
+            <div id="nav-links" class="hidden md:flex space-x-8">
+            </div>
+        </nav>
+    </header>
+
+    <main class="container mx-auto px-6 py-12">
+        <section id="intro" class="text-center mb-16">
+            <h2 class="text-4xl font-bold mb-4 text-gray-800">Your Interactive Study Companion</h2>
+            <p class="text-lg max-w-3xl mx-auto text-gray-600">
+                Welcome! This tool is designed to help you prepare for your Mining Engineering exam. Select a core discipline below to explore detailed topics, interactive visuals, and key concepts from your syllabus in an organized and engaging way.
+            </p>
+        </section>
+
+        <section id="disciplines" class="mb-12">
+            <h3 class="text-3xl font-bold text-center mb-8 text-gray-700">Core Disciplines</h3>
+            <div id="discipline-cards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            </div>
+        </section>
+        
+        <div id="content-display-area" class="mt-16">
+        </div>
+
+    </main>
+
+    <footer class="bg-gray-800 text-white mt-20">
+        <div class="container mx-auto px-6 py-4 text-center">
+            <p>&copy; 2025 Mining Engineering Study Guide. All Rights Reserved.</p>
+        </div>
+    </footer>
+
+    <script>
+        const syllabusData = {
+            "Geology & Exploration": {
+                icon: '🌍',
+                description: 'Fundamentals of earth science, mineral identification, and techniques for discovering and evaluating mineral deposits.',
+                content: `
+                    <h4 class="text-2xl font-bold mb-6 text-center text-gray-700">Geology & Exploration</h4>
+                    <p class="text-center mb-10 max-w-3xl mx-auto">This section covers the foundational geological principles essential for mining. It begins with understanding the materials that form the Earth's crust—minerals and rocks—and progresses to the methods used to find and define economically valuable mineral deposits. Effective exploration is the first critical step in the entire mine life cycle.</p>
+                    <div class="bg-white p-6 rounded-lg shadow-md mb-8">
+                        <h5 class="text-xl font-semibold mb-4">Exploration Drilling Methods</h5>
+                        <p class="mb-4 text-gray-600">Drilling is essential for obtaining physical samples from beneath the surface. The choice of drilling method depends on the ground conditions, required sample type, and depth. Below is a comparison of common exploration drilling techniques. Click on a bar to see more details.</p>
+                        <div class="chart-container"><canvas id="drillingChart"></canvas></div>
+                        <div id="drilling-details" class="mt-4 p-4 bg-gray-50 rounded-lg min-h-[100px] text-gray-700">
+                            Select a drilling method from the chart to view its details.
+                        </div>
+                    </div>
+                     <div class="bg-white p-6 rounded-lg shadow-md">
+                        <h5 class="text-xl font-semibold mb-4">The Mine Life Cycle</h5>
+                        <p class="mb-4 text-gray-600">A mining project is a long-term endeavor with distinct phases, from initial discovery to final land rehabilitation. Click on each stage of the timeline to understand its objective.</p>
+                        <div id="timeline-container" class="mb-4"></div>
+                        <div id="timeline-details" class="mt-4 p-4 bg-gray-50 rounded-lg min-h-[100px] text-gray-700">
+                            Select a stage from the timeline to view its description.
+                        </div>
+                    </div>
+                `
+            },
+            "Mining Methods": {
+                icon: '⛏️',
+                description: 'Comparison of surface and underground mining techniques, their applicability, advantages, and limitations.',
+                content: `
+                    <h4 class="text-2xl font-bold mb-6 text-center text-gray-700">Surface vs. Underground Mining</h4>
+                    <p class="text-center mb-10 max-w-3xl mx-auto">The selection of a mining method is one of the most fundamental decisions in mine planning. It is primarily dictated by the geological characteristics of the deposit, such as its depth, size, shape, and grade. This choice has profound implications for cost, safety, environmental impact, and resource recovery.</p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div class="bg-white p-6 rounded-lg shadow-md">
+                            <h5 class="text-xl font-semibold mb-4 text-center">Surface Mining</h5>
+                            <ul class="space-y-3 text-gray-600">
+                                <li class="flex items-start"><span class="text-green-500 font-bold mr-2">✔</span> <strong>Advantages:</strong> Higher recovery, lower cost per tonne, safer working conditions, high productivity.</li>
+                                <li class="flex items-start"><span class="text-red-500 font-bold mr-2">✖</span> <strong>Disadvantages:</strong> Large surface footprint, high visual/noise impact, limited by depth and stripping ratio.</li>
+                                <li class="flex items-start"><span class="text-blue-500 font-bold mr-2">➤</span> <strong>Applicability:</strong> Large, shallow, low-grade, or tabular deposits (e.g., coal, iron ore, bauxite).</li>
+                            </ul>
+                        </div>
+                        <div class="bg-white p-6 rounded-lg shadow-md">
+                            <h5 class="text-xl font-semibold mb-4 text-center">Underground Mining</h5>
+                             <ul class="space-y-3 text-gray-600">
+                                <li class="flex items-start"><span class="text-green-500 font-bold mr-2">✔</span> <strong>Advantages:</strong> Smaller surface footprint, can access deep deposits, less waste rock generation.</li>
+                                <li class="flex items-start"><span class="text-red-500 font-bold mr-2">✖</span> <strong>Disadvantages:</strong> Higher cost per tonne, lower recovery, more hazardous, requires complex ventilation and ground support.</li>
+                                <li class="flex items-start"><span class="text-blue-500 font-bold mr-2">➤</span> <strong>Applicability:</strong> Deep, high-grade, or structurally complex deposits (e.g., gold veins, base metal sulphides).</li>
+                            </ul>
+                        </div>
+                    </div>
+                `
+            },
+            "Rock Mechanics & Ground Control": {
+                icon: '🏗️',
+                description: 'The study of rock behavior under stress and the design of stable mine excavations.',
+                content: `
+                    <h4 class="text-2xl font-bold mb-6 text-center text-gray-700">Rock Mechanics & Ground Control</h4>
+                    <p class="text-center mb-10 max-w-3xl mx-auto">Rock mechanics is the engineering discipline that studies how rock and rock masses respond to the forces acting upon them. In mining, this is critical for designing safe and stable excavations, from open pit slopes to underground tunnels and stopes. Ground control refers to the practical measures taken to ensure this stability.</p>
+                    <div class="bg-white p-6 rounded-lg shadow-md">
+                        <h5 class="text-xl font-semibold mb-4">Key Concepts</h5>
+                        <ul class="list-disc list-inside space-y-2 text-gray-600">
+                            <li><strong>Stress and Strain:</strong> Understanding how stress from overlying rock (in-situ stress) and mining-induced stress affects rock behavior.</li>
+                            <li><strong>Rock Mass Properties:</strong> Assessing the combined properties of the intact rock and the discontinuities (joints, faults) that run through it. This is often quantified using systems like Rock Mass Rating (RMR).</li>
+                            <li><strong>Failure Criteria:</strong> Using principles like the Mohr-Coulomb or Hoek-Brown criteria to predict when a rock mass might fail under stress.</li>
+                            <li><strong>Support Systems:</strong> Designing and implementing support like rock bolts, shotcrete, steel sets, and cable bolts to reinforce the rock mass and prevent failure.</li>
+                            <li><strong>Slope Stability:</strong> Analyzing the forces acting on a slope in an open pit mine to determine a safe slope angle and prevent landslides.</li>
+                             <li><strong>Subsidence:</strong> Predicting and managing the lowering of the ground surface that can occur above underground mine workings.</li>
+                        </ul>
+                    </div>
+                `
+            },
+            "Drilling & Blasting": {
+                icon: '💥',
+                description: 'The science of rock fragmentation using explosives for excavation in mining operations.',
+                content: `
+                    <h4 class="text-2xl font-bold mb-6 text-center text-gray-700">Drilling & Blasting</h4>
+                    <p class="text-center mb-10 max-w-3xl mx-auto">Drilling and blasting are the first unit operations in most hard rock mining. This process involves drilling holes into the rock in a specific pattern, loading them with explosives, and detonating them to break the rock into a size suitable for loading and hauling. The effectiveness of the blast impacts the cost and efficiency of all subsequent operations.</p>
+                    <div class="bg-white p-6 rounded-lg shadow-md mb-8">
+                         <h5 class="text-xl font-semibold mb-4">Types of Commercial Explosives</h5>
+                        <p class="mb-4 text-gray-600">The selection of an explosive depends on rock conditions, water presence, and safety requirements. Click on a segment of the chart to learn more about each category.</p>
+                        <div class="chart-container"><canvas id="explosivesChart"></canvas></div>
+                        <div id="explosive-details" class="mt-4 p-4 bg-gray-50 rounded-lg min-h-[100px] text-gray-700">
+                            Select an explosive type from the chart to view its details.
+                        </div>
+                    </div>
+                `
+            },
+            "Mine Surveying": {
+                icon: '🗺️',
+                description: 'Precision measurement and mapping of mine workings for planning, safety, and operational control.',
+                content: `
+                    <h4 class="text-2xl font-bold mb-6 text-center text-gray-700">Mine Surveying</h4>
+                    <p class="text-center mb-10 max-w-3xl mx-auto">Mine surveying is the specialized practice of determining the precise position of points and features on the surface and underground. It is fundamental to mining, providing the spatial data needed for exploration, planning, development, and safety monitoring. Accuracy is paramount, as errors can lead to costly operational issues or serious safety hazards.</p>
+                    <div class="bg-white p-6 rounded-lg shadow-md">
+                        <h5 class="text-xl font-semibold mb-4">Core Surveying Tasks</h5>
+                        <ul class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-gray-600">
+                            <li class="flex items-center"><span class="text-xl mr-3">📏</span><div><strong>Linear & Angular Measurement:</strong> Using instruments like Total Stations to measure distances and angles for creating traverses and control networks.</div></li>
+                            <li class="flex items-center"><span class="text-xl mr-3">🧭</span><div><strong>Direction Control:</strong> Guiding the development of tunnels, drifts, and raises to ensure they are on the correct alignment and gradient.</div></li>
+                            <li class="flex items-center"><span class="text-xl mr-3">📈</span><div><strong>Leveling:</strong> Determining elevations to control drainage, haulage grades, and vertical development.</div></li>
+                            <li class="flex items-center"><span class="text-xl mr-3">🌐</span><div><strong>Correlation:</strong> Transferring survey control accurately from the surface to the underground workings, often through vertical shafts.</div></li>
+                            <li class="flex items-center"><span class="text-xl mr-3">📦</span><div><strong>Volume Calculations:</strong> Measuring extracted ore from stopes and waste from development to reconcile production against plans.</div></li>
+                            <li class="flex items-center"><span class="text-xl mr-3">🛰️</span><div><strong>Slope Monitoring:</strong> Using GPS, radar, and total stations to detect minute movements in open pit walls to provide early warning of potential failures.</div></li>
+                        </ul>
+                    </div>
+                `
+            },
+            "Safety & Legislation": {
+                icon: '⚖️',
+                description: 'The legal framework, safety protocols, and regulations governing mining activities in India.',
+                content: `
+                    <h4 class="text-2xl font-bold mb-6 text-center text-gray-700">Mine Safety & Legislation</h4>
+                    <p class="text-center mb-10 max-w-3xl mx-auto">The mining industry is governed by a comprehensive set of laws and regulations designed to ensure the safety of workers, protect the environment, and promote the conservation of mineral resources. A thorough understanding of this legal framework is mandatory for all mining professionals.</p>
+                     <div class="bg-white p-6 rounded-lg shadow-md">
+                        <h5 class="text-xl font-semibold mb-4">Key Acts and Rules</h5>
+                        <div id="legislation-accordion" class="space-y-2">
+                        </div>
+                    </div>
+                `
+            },
+        };
+
+        const drillingData = {
+            labels: ['Auger', 'Cable-tool', 'Core Drill', 'Odex'],
+            datasets: [{
+                label: 'General Complexity/Cost',
+                data: [2, 4, 8, 6],
+                backgroundColor: [
+                    'rgba(172, 188, 162, 0.7)',
+                    'rgba(202, 210, 197, 0.7)',
+                    'rgba(217, 163, 115, 0.7)',
+                    'rgba(242, 222, 193, 0.7)'
+                ],
+                borderColor: [
+                    'rgba(172, 188, 162, 1)',
+                    'rgba(202, 210, 197, 1)',
+                    'rgba(217, 163, 115, 1)',
+                    'rgba(242, 222, 193, 1)'
+                ],
+                borderWidth: 1
+            }]
+        };
+
+        const explosivesData = {
+            labels: ['ANFO', 'Emulsions', 'Slurries/Water Gels'],
+            datasets: [{
+                data: [45, 35, 20],
+                backgroundColor: [
+                    'rgba(217, 163, 115, 0.7)',
+                    'rgba(172, 188, 162, 0.7)',
+                    'rgba(202, 210, 197, 0.7)'
+                ],
+                borderColor: [
+                    'rgba(217, 163, 115, 1)',
+                    'rgba(172, 188, 162, 1)',
+                    'rgba(202, 210, 197, 1)'
+                ],
+                borderWidth: 1,
+            }]
+        };
+        
+        const timelineData = [
+            { stage: 'Exploration', details: 'The search for mineral deposits using geological surveys and remote sensing, followed by exploratory drilling to define potential resources.' },
+            { stage: 'Feasibility', details: 'A detailed technical and economic study to determine if the identified resource can be profitably and safely mined. Includes mine design and financial modeling.' },
+            { stage: 'Development', details: 'Construction of mine infrastructure, including access roads, processing plants, and initial excavations like shafts or box cuts to access the orebody.' },
+            { stage: 'Production', details: 'The active operational phase of the mine, involving the extraction, processing, and sale of minerals.' },
+            { stage: 'Closure', details: 'The final phase involving decommissioning of the mine, reclaiming the land to a safe and stable state, and long-term environmental monitoring.' }
+        ];
+
+        const legislationData = [
+            { title: "Mines and Minerals (Development & Regulation) Act, 1957", content: "The principal legislation governing the regulation of mines and the development of minerals in India. It outlines the procedures for granting mining leases and prospecting licenses." },
+            { title: "Mineral Concession Rules, 1960", content: "These rules provide the detailed procedures for obtaining prospecting licenses and mining leases for various minerals, as stipulated under the MMDR Act." },
+            { title: "Mineral Conservation and Development Rules, 1988", content: "Framed to ensure the systematic development and conservation of minerals. It mandates scientific mining practices and the submission of mining plans." },
+            { title: "Bihar Minor Mineral Concession Rules, 1972", content: "Specific rules governing the extraction of minor minerals (like sand, gravel, building stone) within the state of Bihar." }
+        ];
+
+        let activeChart = null;
+
+        function renderDisciplineCards() {
+            const container = document.getElementById('discipline-cards');
+            const navLinks = document.getElementById('nav-links');
+            container.innerHTML = '';
+            navLinks.innerHTML = '';
+            
+            for (const key in syllabusData) {
+                const item = syllabusData[key];
+                const card = `
+                    <div class="discipline-card bg-white p-6 rounded-lg shadow-md cursor-pointer flex flex-col items-center text-center" data-key="${key}">
+                        <div class="text-5xl mb-4">${item.icon}</div>
+                        <h4 class="text-xl font-semibold mb-2 text-gray-800">${key}</h4>
+                        <p class="text-gray-600 flex-grow">${item.description}</p>
+                    </div>
+                `;
+                container.innerHTML += card;
+
+                const navLink = `<a href="#" class="nav-button" data-key="${key}">${key}</a>`;
+                navLinks.innerHTML += navLink;
+            }
+
+            document.querySelectorAll('.discipline-card, .nav-button').forEach(el => {
+                el.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const key = el.getAttribute('data-key');
+                    displayContent(key);
+                });
+            });
+        }
+
+        function displayContent(key) {
+            const contentArea = document.getElementById('content-display-area');
+            const data = syllabusData[key];
+
+            if (!data) return;
+
+            contentArea.innerHTML = `<section id="${key.replace(/\s+/g, '-')}" class="content-section p-4 md:p-8 bg-gray-50 rounded-xl shadow-inner">${data.content}</section>`;
+            document.getElementById(key.replace(/\s+/g, '-')).style.display = 'block';
+
+            document.querySelectorAll('.nav-button').forEach(btn => {
+                btn.classList.toggle('active-nav-button', btn.getAttribute('data-key') === key);
+            });
+
+            const element = document.getElementById(key.replace(/\s+/g, '-'));
+            if (element) {
+                element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+
+            if (key === 'Geology & Exploration') {
+                createDrillingChart();
+                createTimeline();
+            } else if (key === 'Drilling & Blasting') {
+                createExplosivesChart();
+            } else if (key === 'Safety & Legislation') {
+                createLegislationAccordion();
+            }
+        }
+
+        function createDrillingChart() {
+            const ctx = document.getElementById('drillingChart').getContext('2d');
+            if (activeChart) activeChart.destroy();
+            activeChart = new Chart(ctx, {
+                type: 'bar',
+                data: drillingData,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false }, tooltip: { enabled: true } },
+                    scales: { y: { beginAtZero: true, title: { display: true, text: 'Complexity/Cost Index' } } },
+                    onClick: (evt, elements) => {
+                        if (elements.length > 0) {
+                            const index = elements[0].index;
+                            updateDrillingDetails(index);
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateDrillingDetails(index) {
+            const detailsContainer = document.getElementById('drilling-details');
+            const details = [
+                "<strong>Auger Drill:</strong> Simple, low-cost. Used for shallow sampling in soft ground like soil and clay. Provides disturbed samples and has limited depth penetration.",
+                "<strong>Cable-tool Drill:</strong> Percussion method. Good for unconsolidated material and water wells, but very slow for rock and provides poor quality geological samples.",
+                "<strong>Core Drill:</strong> The standard for mineral exploration. Recovers a solid cylinder (core) of rock for detailed analysis. Wire-line systems offer high efficiency and excellent core recovery.",
+                "<strong>Odex Drill:</strong> An eccentric drilling system designed to advance a casing through difficult overburden (e.g., boulders, loose soil) into bedrock."
+            ];
+            if (details[index]) {
+                detailsContainer.innerHTML = `<p>${details[index]}</p>`;
+            }
+        }
+
+        function createExplosivesChart() {
+            const ctx = document.getElementById('explosivesChart').getContext('2d');
+            if (activeChart) activeChart.destroy();
+            activeChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: explosivesData,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'top' } },
+                    onClick: (evt, elements) => {
+                        if (elements.length > 0) {
+                            const index = elements[0].index;
+                            updateExplosiveDetails(index);
+                        }
+                    }
+                }
+            });
+        }
+        
+        function updateExplosiveDetails(index) {
+            const detailsContainer = document.getElementById('explosive-details');
+            const details = [
+                "<strong>ANFO (Ammonium Nitrate Fuel Oil):</strong> A low-cost, widely used blasting agent. It's relatively safe but not water-resistant, making it suitable for dry blasting conditions only.",
+                "<strong>Emulsions:</strong> Water-in-oil explosives with high energy and excellent water resistance. They are very versatile and safer to handle than dynamite, used in a wide range of conditions.",
+                "<strong>Slurries/Water Gels:</strong> Water-based explosives that have good water resistance and safer fume characteristics. Generally less powerful than emulsions."
+            ];
+             if (details[index]) {
+                detailsContainer.innerHTML = `<p>${details[index]}</p>`;
+            }
+        }
+        
+        function createTimeline() {
+            const container = document.getElementById('timeline-container');
+            let timelineHTML = '<div class="timeline">';
+            timelineData.forEach((item, index) => {
+                timelineHTML += `
+                    <div class="timeline-item" data-index="${index}">
+                        <div class="timeline-dot"></div>
+                        <div class="timeline-date">${item.stage}</div>
+                    </div>
+                `;
+            });
+            timelineHTML += '</div>';
+            container.innerHTML = timelineHTML;
+
+            document.querySelectorAll('.timeline-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    document.querySelectorAll('.timeline-item').forEach(el => el.classList.remove('active'));
+                    item.classList.add('active');
+                    const index = parseInt(item.getAttribute('data-index'));
+                    updateTimelineDetails(index);
+                });
+            });
+        }
+
+        function updateTimelineDetails(index) {
+            const detailsContainer = document.getElementById('timeline-details');
+            const detail = timelineData[index].details;
+            if (detail) {
+                detailsContainer.innerHTML = `<p><strong>${timelineData[index].stage}:</strong> ${detail}</p>`;
+            }
+        }
+
+        function createLegislationAccordion() {
+            const container = document.getElementById('legislation-accordion');
+            container.innerHTML = '';
+            legislationData.forEach((item, index) => {
+                const accordionItem = `
+                    <div class="accordion-item bg-gray-100 rounded">
+                        <h2 class="accordion-header mb-0" id="heading-${index}">
+                            <button class="flex items-center justify-between w-full p-4 font-semibold text-left text-gray-700 rounded transition focus:outline-none" type="button" data-index="${index}">
+                                <span>${item.title}</span>
+                                <span class="accordion-icon transform rotate-0 transition-transform duration-300 text-xl">+</span>
+                            </button>
+                        </h2>
+                        <div class="accordion-content hidden p-4 pt-0 text-gray-600">
+                            ${item.content}
+                            <button class="summarize-btn mt-4 px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition duration-200 ease-in-out">✨ Summarize Legislation</button>
+                            <div class="summary-output mt-2 p-2 bg-blue-50 rounded-md text-blue-800 hidden"></div>
+                            <div class="loading-indicator mt-2 text-blue-500 hidden">Loading summary...</div>
+                        </div>
+                    </div>
+                `;
+                container.innerHTML += accordionItem;
+            });
+
+            container.querySelectorAll('.accordion-header button').forEach(button => {
+                button.addEventListener('click', () => {
+                    const content = button.parentElement.nextElementSibling;
+                    const icon = button.querySelector('.accordion-icon');
+                    const isVisible = !content.classList.contains('hidden');
+
+                    content.classList.toggle('hidden');
+                    icon.textContent = isVisible ? '+' : '-';
+                    icon.style.transform = isVisible ? 'rotate(0deg)' : 'rotate(45deg)';
+                });
+            });
+
+            container.querySelectorAll('.summarize-btn').forEach(button => {
+                button.addEventListener('click', async (e) => {
+                    const contentDiv = e.target.closest('.accordion-content');
+                    const legislationText = contentDiv.querySelector('p').textContent;
+                    const summaryOutput = contentDiv.querySelector('.summary-output');
+                    const loadingIndicator = contentDiv.querySelector('.loading-indicator');
+
+                    summaryOutput.classList.add('hidden');
+                    loadingIndicator.classList.remove('hidden');
+
+                    try {
+                        let chatHistory = [];
+                        chatHistory.push({ role: "user", parts: [{ text: `Summarize the following mining legislation concisely for a student preparing for an exam: "${legislationText}"` }] });
+                        const payload = { contents: chatHistory };
+                        const apiKey = ""; // If you want to use models other than gemini-2.0-flash or imagen-3.0-generate-002, provide an API key here. Otherwise, leave this as-is.
+                        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+                        const response = await fetch(apiUrl, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify(payload)
+                                });
+                        const result = await response.json();
+
+                        if (result.candidates && result.candidates.length > 0 &&
+                            result.candidates[0].content && result.candidates[0].content.parts &&
+                            result.candidates[0].content.parts.length > 0) {
+                            const text = result.candidates[0].content.parts[0].text;
+                            summaryOutput.textContent = text;
+                            summaryOutput.classList.remove('hidden');
+                        } else {
+                            summaryOutput.textContent = "Could not generate summary. Please try again.";
+                            summaryOutput.classList.remove('hidden');
+                        }
+                    } catch (error) {
+                        console.error('Error fetching summary:', error);
+                        summaryOutput.textContent = "Error generating summary. Please check your network connection.";
+                        summaryOutput.classList.remove('hidden');
+                    } finally {
+                        loadingIndicator.classList.add('hidden');
+                    }
+                });
+            });
+        }
+
+
+        document.addEventListener('DOMContentLoaded', () => {
+            renderDisciplineCards();
+        });
+    </script>
+
+</body>
+</html>
